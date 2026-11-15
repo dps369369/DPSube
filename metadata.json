@@ -1,0 +1,6 @@
+{
+  "name": "DPSube",
+  "description": "Personal Rubik's Cube solving performance tracker. Track. Improve. Progress.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

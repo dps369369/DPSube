@@ -1,0 +1,256 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Hardened Global Helper Primitives
+    // -------------------------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidLevel(lvl) {
+      return lvl is string && lvl in ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9'];
+    }
+
+    function isValidCubeType(ct) {
+      return ct is string && ct in ['3x3'];
+    }
+
+    function isValidTimeMs(t) {
+      return t is int && t >= 10 && t <= 86400000;
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid', 'username', 'photoUrl', 'cubeType',
+          'bestSingleMs', 'bestSingleLevel', 'currentSingleLevel',
+          'bestAverageMs', 'bestAverageLevel', 'currentAverageLevel',
+          'totalSingleSolves', 'totalAverageSessions',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'username', 'photoUrl', 'cubeType',
+          'bestSingleMs', 'bestSingleLevel', 'currentSingleLevel',
+          'bestAverageMs', 'bestAverageLevel', 'currentAverageLevel',
+          'totalSingleSolves', 'totalAverageSessions',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid) && data.uid == userId && data.uid == request.auth.uid
+        && data.username is string && data.username.size() >= 2 && data.username.size() <= 40
+        && data.photoUrl is string && data.photoUrl.size() <= 500
+        && isValidCubeType(data.cubeType)
+        && (
+          (data.bestSingleMs == null && data.bestSingleLevel == null) ||
+          (isValidTimeMs(data.bestSingleMs) && isValidLevel(data.bestSingleLevel))
+        )
+        && (data.currentSingleLevel == null || isValidLevel(data.currentSingleLevel))
+        && (
+          (data.bestAverageMs == null && data.bestAverageLevel == null) ||
+          (isValidTimeMs(data.bestAverageMs) && isValidLevel(data.bestAverageLevel))
+        )
+        && (data.currentAverageLevel == null || isValidLevel(data.currentAverageLevel))
+        && data.totalSingleSolves is int && data.totalSingleSolves >= 0 && data.totalSingleSolves <= 10000000
+        && data.totalAverageSessions is int && data.totalAverageSessions >= 0 && data.totalAverageSessions <= 2000000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSingleSolve(data, userId, solveId) {
+      return data.keys().hasAll([
+          'id', 'userId', 'timeMs', 'level', 'source',
+          'averageSessionId', 'cubeType', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'userId', 'timeMs', 'level', 'source',
+          'averageSessionId', 'cubeType', 'createdAt'
+        ])
+        && isValidId(data.id) && data.id == solveId
+        && isValidId(data.userId) && data.userId == userId && data.userId == request.auth.uid
+        && isValidTimeMs(data.timeMs)
+        && isValidLevel(data.level)
+        && data.source is string && data.source in ['SINGLE', 'AO5']
+        && (
+          (data.source == 'SINGLE' && data.averageSessionId == null) ||
+          (data.source == 'AO5' && isValidId(data.averageSessionId))
+        )
+        && isValidCubeType(data.cubeType)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAverageSession(data, userId, sessionId) {
+      return data.keys().hasAll([
+          'id', 'userId', 'solveIds', 'solveTimesMs',
+          'averageMs', 'averageLevel', 'cubeType', 'createdAt'
+        ])
+        && data.keys().hasOnly([
+          'id', 'userId', 'solveIds', 'solveTimesMs',
+          'averageMs', 'averageLevel', 'cubeType', 'createdAt'
+        ])
+        && isValidId(data.id) && data.id == sessionId
+        && isValidId(data.userId) && data.userId == userId && data.userId == request.auth.uid
+        && data.solveIds is list && data.solveIds.size() == 5
+        && isValidId(data.solveIds[0])
+        && isValidId(data.solveIds[1])
+        && isValidId(data.solveIds[2])
+        && isValidId(data.solveIds[3])
+        && isValidId(data.solveIds[4])
+        && data.solveTimesMs is list && data.solveTimesMs.size() == 5
+        && isValidTimeMs(data.solveTimesMs[0])
+        && isValidTimeMs(data.solveTimesMs[1])
+        && isValidTimeMs(data.solveTimesMs[2])
+        && isValidTimeMs(data.solveTimesMs[3])
+        && isValidTimeMs(data.solveTimesMs[4])
+        && isValidTimeMs(data.averageMs)
+        && isValidLevel(data.averageLevel)
+        && isValidCubeType(data.cubeType)
+        && data.createdAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // User Profile & Official Statistics
+    // -------------------------------------------------------------------------
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && incoming().totalSingleSolves == 0
+        && incoming().totalAverageSessions == 0
+        && incoming().bestSingleMs == null
+        && incoming().bestSingleLevel == null
+        && incoming().currentSingleLevel == null
+        && incoming().bestAverageMs == null
+        && incoming().bestAverageLevel == null
+        && incoming().currentAverageLevel == null;
+
+      allow update: if isValidId(userId)
+        && isVerifiedUser()
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action: Profile update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'username', 'photoUrl', 'updatedAt'
+          ]) ||
+          // Action: Official statistics update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'bestSingleMs', 'bestSingleLevel', 'currentSingleLevel',
+            'bestAverageMs', 'bestAverageLevel', 'currentAverageLevel',
+            'totalSingleSolves', 'totalAverageSessions', 'updatedAt'
+          ])
+        );
+
+      allow delete: if false;
+
+      // -----------------------------------------------------------------------
+      // Official Single Solves (SINGLE or AO5)
+      // -----------------------------------------------------------------------
+      match /singleSolves/{solveId} {
+        allow get: if isValidId(userId) && isValidId(solveId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.userId == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(solveId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidSingleSolve(incoming(), userId, solveId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.updatedAt == request.time
+          && (
+            incoming().source == 'SINGLE' ||
+            existsAfter(/databases/$(database)/documents/users/$(userId)/averageSessions/$(incoming().averageSessionId))
+          );
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(solveId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && resource != null
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.updatedAt == request.time
+          && (
+            existing().source == 'SINGLE' ||
+            !existsAfter(/databases/$(database)/documents/users/$(userId)/averageSessions/$(existing().averageSessionId))
+          );
+      }
+
+      // -----------------------------------------------------------------------
+      // Official Average of 5 (Ao5) Sessions
+      // -----------------------------------------------------------------------
+      match /averageSessions/{sessionId} {
+        allow get: if isValidId(userId) && isValidId(sessionId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.userId == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(sessionId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && isValidAverageSession(incoming(), userId, sessionId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.updatedAt == request.time
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(incoming().solveIds[0]))
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(incoming().solveIds[1]))
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(incoming().solveIds[2]))
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(incoming().solveIds[3]))
+          && existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(incoming().solveIds[4]));
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(sessionId)
+          && isVerifiedUser()
+          && isOwner(userId)
+          && resource != null
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && getAfter(/databases/$(database)/documents/users/$(userId)).data.updatedAt == request.time
+          && !existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(existing().solveIds[0]))
+          && !existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(existing().solveIds[1]))
+          && !existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(existing().solveIds[2]))
+          && !existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(existing().solveIds[3]))
+          && !existsAfter(/databases/$(database)/documents/users/$(userId)/singleSolves/$(existing().solveIds[4]));
+      }
+    }
+  }
+}

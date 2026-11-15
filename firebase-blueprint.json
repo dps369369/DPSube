@@ -1,0 +1,237 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Official DPSube user profile and aggregated solving performance statistics.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Authentication user ID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "username": {
+          "type": "string",
+          "description": "User display name or handle.",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "photoUrl": {
+          "type": "string",
+          "description": "Profile picture URL or local asset path.",
+          "minLength": 0,
+          "maxLength": 500
+        },
+        "cubeType": {
+          "type": "string",
+          "description": "Primary puzzle category for future multi-cube scalability.",
+          "enum": ["3x3"]
+        },
+        "bestSingleMs": {
+          "type": "integer",
+          "description": "Personal best single solve time in milliseconds, or null if none recorded."
+        },
+        "bestSingleLevel": {
+          "type": "string",
+          "description": "Performance level of personal best single solve, or null.",
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"]
+        },
+        "currentSingleLevel": {
+          "type": "string",
+          "description": "Performance level of the most recent official single solve, or null.",
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"]
+        },
+        "bestAverageMs": {
+          "type": "integer",
+          "description": "Personal best Ao5 session mean in milliseconds, or null if none recorded."
+        },
+        "bestAverageLevel": {
+          "type": "string",
+          "description": "Performance level of personal best Ao5 session, or null.",
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"]
+        },
+        "currentAverageLevel": {
+          "type": "string",
+          "description": "Performance level of the most recent official Ao5 session, or null.",
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"]
+        },
+        "totalSingleSolves": {
+          "type": "integer",
+          "description": "Total official single solves (single solves + 5 per completed Ao5 session)."
+        },
+        "totalAverageSessions": {
+          "type": "integer",
+          "description": "Total completed official Ao5 sessions."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Account registration server timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last profile or statistics update server timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "username",
+        "photoUrl",
+        "cubeType",
+        "bestSingleMs",
+        "bestSingleLevel",
+        "currentSingleLevel",
+        "bestAverageMs",
+        "bestAverageLevel",
+        "currentAverageLevel",
+        "totalSingleSolves",
+        "totalAverageSessions",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SingleSolve": {
+      "title": "SingleSolve",
+      "description": "An official individual Rubik's Cube solve from Single Tracking or an Ao5 session.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique document ID for the solve.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "timeMs": {
+          "type": "integer",
+          "description": "Solving time in milliseconds."
+        },
+        "level": {
+          "type": "string",
+          "description": "Calculated performance level L0-L9.",
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"]
+        },
+        "source": {
+          "type": "string",
+          "description": "Tracking method that produced this solve.",
+          "enum": ["SINGLE", "AO5"]
+        },
+        "averageSessionId": {
+          "type": "string",
+          "description": "Associated Ao5 session ID if source is AO5, otherwise null.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "cubeType": {
+          "type": "string",
+          "description": "Puzzle category.",
+          "enum": ["3x3"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Solve creation server timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "timeMs",
+        "level",
+        "source",
+        "averageSessionId",
+        "cubeType",
+        "createdAt"
+      ]
+    },
+    "AverageSession": {
+      "title": "AverageSession",
+      "description": "A completed official Average of 5 (Ao5) session containing 5 solves and their arithmetic mean.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique document ID for the Ao5 session.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "solveIds": {
+          "type": "array",
+          "description": "Ordered array of the 5 associated SingleSolve document IDs."
+        },
+        "solveTimesMs": {
+          "type": "array",
+          "description": "Ordered array of the 5 solving times in milliseconds."
+        },
+        "averageMs": {
+          "type": "integer",
+          "description": "Arithmetic mean of the 5 solving times in milliseconds."
+        },
+        "averageLevel": {
+          "type": "string",
+          "description": "Calculated performance level L0-L9 for the session mean.",
+          "enum": ["L0", "L1", "L2", "L3", "L4", "L5", "L6", "L7", "L8", "L9"]
+        },
+        "cubeType": {
+          "type": "string",
+          "description": "Puzzle category.",
+          "enum": ["3x3"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Session completion server timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "solveIds",
+        "solveTimesMs",
+        "averageMs",
+        "averageLevel",
+        "cubeType",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserProfile"
+      },
+      "description": "Stores each user's official profile and aggregated solving statistics."
+    },
+    "/users/{userId}/singleSolves/{solveId}": {
+      "schema": {
+        "$ref": "#/entities/SingleSolve"
+      },
+      "description": "Stores every official individual solve (from Single Solving or Ao5 sessions)."
+    },
+    "/users/{userId}/averageSessions/{sessionId}": {
+      "schema": {
+        "$ref": "#/entities/AverageSession"
+      },
+      "description": "Stores every completed official Average of 5 (Ao5) session."
+    }
+  }
+}
