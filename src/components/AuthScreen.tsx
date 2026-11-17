@@ -7,6 +7,14 @@ type AuthMode = 'login' | 'register' | 'forgot';
 
 function mapAuthError(err: unknown): { message: string; isProviderDisabled: boolean } {
   const raw = err instanceof Error ? err.message : String(err);
+  if (raw.includes('auth/unauthorized-domain')) {
+    const currentHost =
+      typeof window !== 'undefined' ? window.location.hostname : 'this domain';
+    return {
+      message: `Domain "${currentHost}" is not authorized for Firebase sign-in. Open Firebase Console → Authentication → Settings → Authorized domains → Add domain, and add "${currentHost}".`,
+      isProviderDisabled: false,
+    };
+  }
   if (raw.includes('auth/operation-not-allowed')) {
     return {
       message:
